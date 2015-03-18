@@ -55,7 +55,7 @@ type Client struct {
 	// this token, keep in mind that you must specify the history scope if you
 	// intend to use the User Activity endpoint and the profile scope if you
 	// intend to use the User Profile endpoint.
-	*access
+	*Access
 
 	// An http.Client is needed to make requests to the API as well as do the
 	// authentication. Rather than instantiate a new client on each request, we
@@ -73,7 +73,7 @@ type Client struct {
 func NewClient(serverToken string) *Client {
 	return &Client{
 		serverToken: serverToken,
-		access:      new(access),
+		Access:      new(Access),
 		HttpClient:  new(http.Client),
 	}
 }
@@ -173,13 +173,13 @@ func (c *Client) SetAccessToken(authorizationCode string) error {
 	decoder := json.NewDecoder(res.Body)
 
 	if res.StatusCode == http.StatusOK {
-		access := access{}
+		access := Access{}
 		if err := decoder.Decode(&access); err != nil {
 			return err
 		}
 
 		if access.TokenType == "Bearer" { // always true
-			c.access = &access
+			c.Access = &access
 			return nil
 		}
 	}
@@ -343,7 +343,7 @@ func (c *Client) sendRequestWithAuthorization(url string, oauth bool) (*http.Res
 
 	auth := fmt.Sprintf("Token %s", c.serverToken)
 	if oauth {
-		auth = fmt.Sprintf("Bearer %s", c.access.Token)
+		auth = fmt.Sprintf("Bearer %s", c.Access.Token)
 	}
 
 	req.Header.Set("authorization", auth)

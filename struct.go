@@ -3,7 +3,7 @@ package uber
 // access is returned from `AccessTokenEndpoint`
 // See comment for `Client.access`
 // https://developer.uber.com/v1/auth/
-type access struct {
+type Access struct {
 	// access_token result of three-legged OAuth 2.0 flow
 	// Needed to make requests on behalf of a user
 	Token string `json:"access_token"`
@@ -208,6 +208,9 @@ type User struct {
 	// Promotion code user has activated
 	// eg: "teypo"
 	PromoCode string `json:"promo_code"`
+
+	// Unique identifier of the Uber user.
+	UUID string `json:"uuid"`
 }
 
 // TODO(r-medina): add doc
