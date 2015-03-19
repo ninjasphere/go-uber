@@ -78,18 +78,19 @@ func NewClient(serverToken string) *Client {
 	}
 }
 
-// OAuth begins the authorization process with Uber. There's no way to do this
-// strictly programatically because of the multi-step OAuth process.  This method
-// returns the URL that the user needs to go to in order for Uber to authorize your
-// app and give you a authorization code.
-func (c *Client) OAuth(
-	clientID, clientSecret, redirect string, scope ...string,
-) (string, error) {
+func (c *Client) SetAuth(clientID, clientSecret, redirect string) {
 	c.auth = &auth{
 		clientID:     clientID,
 		clientSecret: clientSecret,
 		redirectURI:  redirect,
 	}
+}
+
+// OAuth begins the authorization process with Uber. There's no way to do this
+// strictly programatically because of the multi-step OAuth process.  This method
+// returns the URL that the user needs to go to in order for Uber to authorize your
+// app and give you a authorization code.
+func (c *Client) OAuth(scope ...string) (string, error) {
 
 	return c.generateRequestURL(AuthHost, AccessCodeEndpoint, authReq{
 		auth:         *c.auth,
@@ -102,10 +103,8 @@ func (c *Client) OAuth(
 // AutOAuth automatically does the authorization flow by opening the user's browser,
 // asking them to authorize, then booting up a server to deal with the user's redirect and
 // authorizing your client.
-func (c *Client) AutOAuth(
-	clientID, clientSecret, redirect string, scope ...string,
-) error {
-	urlString, err := c.OAuth(clientID, clientSecret, redirect, scope...)
+func (c *Client) AutOAuth(scope ...string) error {
+	urlString, err := c.OAuth(scope...)
 	if err != nil {
 		return nil
 	}
@@ -138,7 +137,7 @@ you may close this webpage`)
 
 	err = open.Run(urlString)
 	if err != nil {
-		return err
+		fmt.Printf("Failed to open browser. Go to this URL: %s", urlString)
 	}
 
 	select {
@@ -152,12 +151,26 @@ you may close this webpage`)
 // SetAccessToken completes the third step of the authorization process.
 // Once the user generates an authorization code
 func (c *Client) SetAccessToken(authorizationCode string) error {
-	payload, err := c.generateRequestURLHelper(reflect.ValueOf(accReq{
+	return c.getToken(accReq{
 		auth:         *c.auth,
 		clientSecret: c.auth.clientSecret, // added here for safety
 		grantType:    "authorization_code",
 		code:         authorizationCode,
-	}))
+	})
+}
+
+// RefreshAccessToken uses the refresh token to get a new access token
+func (c *Client) RefreshAccessToken() error {
+	return c.getToken(accReq{
+		auth:         *c.auth,
+		clientSecret: c.auth.clientSecret, // added here for safety
+		grantType:    "refresh_token",
+		refreshToken: c.RefreshToken,
+	})
+}
+
+func (c *Client) getToken(request accReq) error {
+	payload, err := c.generateRequestURLHelper(reflect.ValueOf(request))
 	if err != nil {
 		return err
 	}

@@ -233,7 +233,8 @@ type accReq struct {
 	auth
 	clientSecret string `query:"client_secret,required"`
 	grantType    string `query:"grant_type,required"`
-	code         string `query:"code,required"`
+	code         string `query:"code"`
+	refreshToken string `query:"refresh_token"`
 }
 
 // TODO(r-medina): add doc
