@@ -95,7 +95,7 @@ func (c *Client) OAuth(scope ...string) (string, error) {
 	return c.generateRequestURL(AuthHost, AccessCodeEndpoint, authReq{
 		auth:         *c.auth,
 		responseType: "code",
-		scope:        strings.Join(scope, ","), // profile,history
+		scope:        strings.Join(scope, " "), // "profile history"
 		state:        State,
 	})
 }
