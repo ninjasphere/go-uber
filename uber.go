@@ -322,6 +322,19 @@ func (c *Client) CreateRequest(productID string, start *Location, end *Location,
 	return &request, nil
 }
 
+func (c *Client) GetRequest(requestID string) (*Request, error) {
+	request := new(Request)
+	if err := c.get(RequestsEndpoint+"/"+requestID, nil, true, request); err != nil {
+		return nil, err
+	}
+
+	return request, nil
+}
+
+func (c *Client) CancelRequest(requestID string) error {
+	return c.delete(RequestsEndpoint+"/"+requestID, nil, true, nil)
+}
+
 // get helps facilitate all the get requests to the Uber api.
 // Takes the endpoint, the query parameters, whether or not oauth should be used
 // and the data structure that the JSON response should be unmarshalled into.
@@ -334,6 +347,21 @@ func (c *Client) get(
 	}
 
 	res, err := c.sendRequestWithAuthorization("GET", url, nil, oauth)
+	if err != nil {
+		return err
+	}
+	return c.readResponse(res, out)
+}
+
+func (c *Client) delete(
+	endpoint string, payload uberAPIRequest, oauth bool, out interface{},
+) error {
+	url, err := c.generateRequestURL(UberAPIHost, endpoint, payload)
+	if err != nil {
+		return err
+	}
+
+	res, err := c.sendRequestWithAuthorization("DELETE", url, nil, oauth)
 	if err != nil {
 		return err
 	}
@@ -363,8 +391,6 @@ func (c *Client) readResponse(res *http.Response, out interface{}) error {
 
 	defer res.Body.Close()
 
-	decoder := json.NewDecoder(res.Body)
-
 	// If the status code is non-2xx, generate the error
 	switch {
 	case res.StatusCode == http.StatusNotFound:
@@ -375,6 +401,7 @@ func (c *Client) readResponse(res *http.Response, out interface{}) error {
 	case res.StatusCode >= 300:
 		// no good way to do this with `http.Status...` codes ;o
 		uberErr := new(uberError)
+		decoder := json.NewDecoder(res.Body)
 		if err := decoder.Decode(uberErr); err != nil {
 			return err
 		}
@@ -385,9 +412,12 @@ func (c *Client) readResponse(res *http.Response, out interface{}) error {
 		return *uberErr
 	}
 
-	err := decoder.Decode(out)
-	if err != nil {
-		return err
+	if out != nil {
+		decoder := json.NewDecoder(res.Body)
+		err := decoder.Decode(out)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
