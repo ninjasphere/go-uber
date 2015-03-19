@@ -122,7 +122,7 @@ type timesResp struct {
 type Location struct {
 	// Human-readable address
 	// eg: "706 Mission St, San Francisco, CA"
-	Address string `json:"address"`
+	Address string `json:"address,omitempty"`
 
 	// eg: 37.7860099
 	Latitude float64 `json:"latitude"`
@@ -213,6 +213,64 @@ type User struct {
 	UUID string `json:"uuid"`
 }
 
+// Request is a user-requested trip
+// See: https://developer.uber.com/v1/endpoints/#request-details
+type Request struct {
+
+	// The unique ID of the Request.
+	// eg: "b2205127-a334-4df4-b1ba-fc9f28f56c96"
+	RequestID string `json:"request_id"`
+
+	// The status of the Request indicating state.
+	// eg: "accepted"
+	Status string `json:"status"`
+
+	// The object that contains vehicle details.
+	Vehicle struct {
+		// The vehicle make or brand.
+		// eg: "Bugatti"
+		Make string `json:"make"`
+
+		// The vehicle model or type.
+		// eg: "Veyron"
+		Model string `json:"model"`
+
+		// The license plate number of the vehicle.
+		// eg: "I<3Uber"
+		LicensePlate string `json:"license_plate"`
+	} `json:"vehicle"`
+
+	// The object that contains driver details.
+	Driver struct {
+		// The formatted phone number for contacting the driver.
+		// eg: "(555)555-5555"
+		PhoneNumber string `json:"phone_number"`
+
+		// The driver's star rating out of 5 stars.
+		// eg: 5
+		Rating float64 `json:"rating"`
+
+		// The URL to the photo of the driver.
+		// eg: "https://d1w2poirtb3as9.cloudfront.net/img.jpeg"
+		PictureURL string `json:"picture_url"`
+
+		// The first name of the driver.
+		// eg: "Bob"
+		Name string `json:"name"`
+	} `json:"driver"`
+
+	// The object that contains the location information of the vehicle and driver.
+	Location Location `json:"location"`
+
+	// The estimated time of vehicle arrival in minutes.
+	// eg: 4
+	ETA int `json:"eta"`
+
+	// The surge pricing multiplier used to calculate the increased price of a Request. A multiplier of 1.0 means surge pricing is not in effect.
+	// eg: 1.0
+	SurgeMultiplier float64 `json:"surge_multiplier"`
+}
+
 // TODO(r-medina): add doc
 type auth struct {
 	clientID     string `query:"client_id,required"`
@@ -263,6 +321,15 @@ type timesReq struct {
 type historyReq struct {
 	offset int `query:"offset,required"`
 	limit  int `query:"limit,required"`
+}
+
+type createRequestReq struct {
+	ProductID           string   `json:"product_id"`
+	StartLatitude       float64  `json:"start_latitude"`
+	StartLongitude      float64  `json:"start_longitude"`
+	EndLatitude         *float64 `json:"end_latitude,omitempty"`
+	EndLongitude        *float64 `json:"end_longitude,omitempty"`
+	SurgeConfirmationID *string  `json:"surge_confirmation_id,omitempty"`
 }
 
 // uberError implements the error interface (by defining an `Error() string` method).

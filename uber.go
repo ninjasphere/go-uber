@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -20,12 +21,13 @@ import (
 )
 
 const (
-	Version         = "v1"
-	ProductEndpoint = "products"
-	PriceEndpoint   = "estimates/price"
-	TimeEndpoint    = "estimates/time"
-	HistoryEndpoint = "history"
-	UserEndpoint    = "me"
+	Version          = "v1"
+	ProductEndpoint  = "products"
+	PriceEndpoint    = "estimates/price"
+	TimeEndpoint     = "estimates/time"
+	HistoryEndpoint  = "history"
+	UserEndpoint     = "me"
+	RequestsEndpoint = "requests"
 
 	// the next two use `AUTH_EDPOINT`
 
@@ -296,6 +298,30 @@ func (c *Client) GetUserProfile() (*User, error) {
 	return user, nil
 }
 
+func (c *Client) CreateRequest(productID string, start *Location, end *Location, surgeConfirmationID string) (*Request, error) {
+	payload := createRequestReq{
+		ProductID:      productID,
+		StartLatitude:  start.Latitude,
+		StartLongitude: start.Longitude,
+	}
+
+	if end != nil {
+		payload.EndLatitude = &end.Latitude
+		payload.EndLongitude = &end.Longitude
+	}
+
+	if surgeConfirmationID != "" {
+		payload.SurgeConfirmationID = &surgeConfirmationID
+	}
+
+	var request Request
+	if err := c.post(RequestsEndpoint, payload, true, &request); err != nil {
+		return nil, err
+	}
+
+	return &request, nil
+}
+
 // get helps facilitate all the get requests to the Uber api.
 // Takes the endpoint, the query parameters, whether or not oauth should be used
 // and the data structure that the JSON response should be unmarshalled into.
@@ -307,10 +333,34 @@ func (c *Client) get(
 		return err
 	}
 
-	res, err := c.sendRequestWithAuthorization(url, oauth)
+	res, err := c.sendRequestWithAuthorization("GET", url, nil, oauth)
 	if err != nil {
 		return err
 	}
+	return c.readResponse(res, out)
+}
+
+// post helps facilitate all the post requests to the Uber api.
+// Takes the endpoint, the payload, whether or not oauth should be used
+// and the data structure that the JSON response should be unmarshalled into.
+func (c *Client) post(
+	endpoint string, payload uberAPIRequest, oauth bool, out interface{},
+) error {
+
+	url, err := c.generateRequestURL(UberAPIHost, endpoint, nil)
+	if err != nil {
+		return err
+	}
+
+	res, err := c.sendRequestWithAuthorization("POST", url, payload, oauth)
+	if err != nil {
+		return err
+	}
+	return c.readResponse(res, out)
+}
+
+func (c *Client) readResponse(res *http.Response, out interface{}) error {
+
 	defer res.Body.Close()
 
 	decoder := json.NewDecoder(res.Body)
@@ -320,11 +370,9 @@ func (c *Client) get(
 	case res.StatusCode == http.StatusNotFound:
 		// should never, ever happen because we specify the endpoints
 		return &uberError{
-			Message: fmt.Sprintf("Endpoint '%s' not found.", endpoint),
+			Message: fmt.Sprintf("Endpoint not found."),
 		}
 	case res.StatusCode >= 300:
-		decoder = json.NewDecoder(res.Body)
-
 		// no good way to do this with `http.Status...` codes ;o
 		uberErr := new(uberError)
 		if err := decoder.Decode(uberErr); err != nil {
@@ -337,7 +385,7 @@ func (c *Client) get(
 		return *uberErr
 	}
 
-	err = decoder.Decode(out)
+	err := decoder.Decode(out)
 	if err != nil {
 		return err
 	}
@@ -348,10 +396,25 @@ func (c *Client) get(
 // sendRequestWithAuthorization sends an HTTP GET request with an Authorization
 // field in the header containing the Client's access token (bearer token) if
 // the oauth parameter is true and the server token (api token) if not.
-func (c *Client) sendRequestWithAuthorization(url string, oauth bool) (*http.Response, error) {
-	req, err := http.NewRequest("GET", url, nil)
+func (c *Client) sendRequestWithAuthorization(method, url string, data uberAPIRequest, oauth bool) (*http.Response, error) {
+
+	var body io.Reader
+	if method == "POST" && data != nil {
+		jsBody, err := json.Marshal(data)
+		if err != nil {
+			return nil, err
+		}
+
+		body = bytes.NewReader(jsBody)
+	}
+
+	req, err := http.NewRequest(method, url, body)
 	if err != nil {
 		return nil, err
+	}
+
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
 	}
 
 	auth := fmt.Sprintf("Token %s", c.serverToken)
